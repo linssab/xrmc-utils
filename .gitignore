@@ -3,6 +3,7 @@
 *.a
 *.so
 *.dylib
+*.txt
 Makefile.in
 config.h.in
 configure
