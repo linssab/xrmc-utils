@@ -63,24 +63,19 @@ def detector_efficiency_convolution(
 
     #xrl_error **error;
 
-    #if (xraylib_init_flag==false){
-    #	  XRayInit();
-    #xraylib_init_flag=true;
-    #}
-
     spectrum_temp = np.zeros(spectrum_size, dtype=np.double)
     spectrum_conv = np.zeros([scatt_orders,spectrum_size], dtype=np.double)
 
-    #file_in=fopen(spectrum_in,"rb");
-    #file_out=fopen(spectrum_out,"wb");
-    #fread(spectrum_temp,sizeof(double),spectrum_size,file_in);
-    #fwrite(spectrum_temp,sizeof(double),spectrum_size,file_out);
-
     k=0
     print("Efficiency correction")
+    #########################################################################
+    #NOTE: No longer performs the convolution PER ORDER. Instead, we sum
+    #all orders and apply it only once
+    #########################################################################
     for k in range(scatt_orders):
-	#fread(spectrum_temp,sizeof(double),spectrum_size,file_in);
-        spectrum_temp = data[k,:] 
+        spectrum_temp += data[k,:] 
+    #########################################################################
+
         density = xlib.ElementDensity(Z)
         density1 = xlib.ElementDensity(Z_window)
         i=0
@@ -94,7 +89,6 @@ def detector_efficiency_convolution(
                 spectrum_conv[k][i] = spectrum_temp[i] * (1.0-np.exp(-attenuation*thickness*density)) * np.exp(-attenuation_window * window_thick * density1-attenuation_air * air_thickness*density_air)
             else:
                 spectrum_conv[k][i] = 0.0
-	  #fwrite(spectrum_conv,sizeof(double),spectrum_size,file_out);
     return spectrum_conv
 
 def SDD_convolution_with_tail(
@@ -103,7 +97,6 @@ def SDD_convolution_with_tail(
         scatt_orders,
         rivelatore):
 
-    #FILE *file_in,*file_out;
     i,j,k,m = 0,0,0,0
     sigma_var, my_sum = 0, 0
     factor = 0
@@ -115,49 +108,44 @@ def SDD_convolution_with_tail(
     A0,A3,A4,A5,B0,X,FWHM = 0,0,0,0,0,0,0
     alpha,a,b,E0,G,G1,F,E_curr = 0,0,0,0,0,0,0,0
     chan_ref = 0
-
-    #file_in=fopen(spectrum_in,"rb");
-
-    #file_out=fopen(spectrum_out,"wb");
-    #fread(spectrum_temp,sizeof(double),spectrum_size,file_in);
-    #fwrite(spectrum_temp,sizeof(double),spectrum_size,file_out);
-
     print("SDD convolution")
+
+    #########################################################################
+    #NOTE: No longer performs the convolution PER ORDER. Instead, we sum 
+    #all orders and apply it only once
+    #########################################################################
     for m in range(scatt_orders):
+        spectrum_temp += data[m,:,0,0] 
+    #########################################################################
 
-        #fread(spectrum_temp,sizeof(double),spectrum_size,file_in);
+    a=rivelatore.noise*rivelatore.noise;
+    b=2.3548*2.3548*3.85*rivelatore.Fano/1000.0;
 
-        spectrum_temp = data[m,:,0,0] 
-
-        a=rivelatore.noise*rivelatore.noise;
-        b=2.3548*2.3548*3.85*rivelatore.Fano/1000.0;
-
-        for i in range(1,num_chns):
-            print(f"Progress {m}: {i}/{num_chns}", end="\r")
-            my_sum=0.0;
-            E0=i*step;
-            FWHM=np.sqrt(a+b*E0);
-            B0=np.sqrt(2.0)/(2.0*np.sqrt(2.0*np.log(2.0)))*FWHM;
-            #A0=1.0/(FWHM*np.sqrt(np.pi));
-            #B0 = 0.6005612*FWHM
-            A0=1.0/(FWHM*1.77245385);
-            A3=2.73E-3*np.exp(-0.21*E0)+1.0E-4;
-            A4=0.000188*np.exp(-0.00296*(pow(E0,0.763)))+1.355E-5*np.exp(0.968*(pow(E0,0.498)));
-            alpha=1.179*np.exp(8.6E-4*(pow(E0,1.877)))- 7.793*np.exp(-3.81/(pow(E0,0.0716)));
-            for j in range(1,i+100):
-                if j < rivelatore.MCA_chns:
-                    E_curr=step*j;
-                    X=(E_curr-E0)/B0;
-                    G=np.exp(-X*X);
-                    #G1=exp(-(E_curr-(E0-1.74))*(E_curr-(E0-1.74))/(2*FWHM*FWHM));
-                    F=erfc(X);
-                    R[j]=A0*G+0.63*A3+15.0*A4*np.exp(alpha*(E_curr-E0))*F;
-                    my_sum+=R[j];
-                else: break
-            for k in range(1,i+100):
-                if k < rivelatore.MCA_chns:
-                    spectrum_conv[m][k]+=R[k]*spectrum_temp[i]/my_sum;
-                else: break
-          #fwrite(spectrum_conv,sizeof(double),rivelatore.MCA_chns,file_out);
+    for i in range(1,num_chns):
+        print(f"Progress {m}: {i}/{num_chns}", end="\r")
+        my_sum=0.0;
+        E0=i*step;
+        FWHM=np.sqrt(a+b*E0);
+        B0=np.sqrt(2.0)/(2.0*np.sqrt(2.0*np.log(2.0)))*FWHM;
+        #A0=1.0/(FWHM*np.sqrt(np.pi));
+        #B0 = 0.6005612*FWHM
+        A0=1.0/(FWHM*1.77245385);
+        A3=2.73E-3*np.exp(-0.21*E0)+1.0E-4;
+        A4=0.000188*np.exp(-0.00296*(pow(E0,0.763)))+1.355E-5*np.exp(0.968*(pow(E0,0.498)));
+        alpha=1.179*np.exp(8.6E-4*(pow(E0,1.877)))- 7.793*np.exp(-3.81/(pow(E0,0.0716)));
+        for j in range(1,i+100):
+            if j < rivelatore.MCA_chns:
+                E_curr=step*j;
+                X=(E_curr-E0)/B0;
+                G=np.exp(-X*X);
+                #G1=exp(-(E_curr-(E0-1.74))*(E_curr-(E0-1.74))/(2*FWHM*FWHM));
+                F=erfc(X);
+                R[j]=A0*G+0.63*A3+15.0*A4*np.exp(alpha*(E_curr-E0))*F;
+                my_sum+=R[j];
+            else: break
+        for k in range(1,i+100):
+            if k < rivelatore.MCA_chns:
+                spectrum_conv[m][k]+=R[k]*spectrum_temp[i]/my_sum;
+            else: break
     return spectrum_conv
 

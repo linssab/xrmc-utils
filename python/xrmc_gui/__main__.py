@@ -193,7 +193,7 @@ class Root:
 
         # Comboboxes in the middle
         __self__.layers.append(StringVar())
-        __self__.thicknesses.append(IntVar())
+        __self__.thicknesses.append(DoubleVar())
 
         cbb = ttk.Combobox(__self__.frame, values=values, 
                 textvariable=__self__.layers[__self__.layer_count-1])
@@ -224,12 +224,22 @@ class Root:
         global DETECTOR
 
         compounds, materials, thicknesses = [], [], []
+        skipped_materials, skipped_thick = [], []
         for i in range(len(__self__.layers)):
             if __self__.layers[i].get() \
                     and __self__.layers[i].get() != "Custom"\
-                    and __self__.thicknesses[i].get() > 0:
+                    and __self__.thicknesses[i].get() > 0.0:
                 materials.append(__self__.layers[i].get())
                 thicknesses.append(__self__.thicknesses[i].get())
+            else: 
+                skipped_materials.append(__self__.layers[i].get())
+                skipped_thick.append(i)
+        if skipped_materials != []:
+            text1 = ""
+            for mat, l in zip(skipped_materials,skipped_thick):
+                if mat == "": mat = "Empty"
+                text1 = str(mat) + f" - Layer {l}"
+            messagebox.showinfo("Invalid layers!",f"Ignoring layers: {text1}")
         for material in materials:
             a = Elements.compound()
             a.set_compound(material)
@@ -276,7 +286,9 @@ class Root:
                 3,
                 DETECTOR)
 
-        a = data[:,:].sum(0)
+        spec = np.zeros(nchan, dtype=np.float32)
+        for k in range(3):
+            spec += data[k,:]
         save = messagebox.askyesno("Save","Save output to txt?")
         if save:
             f = filedialog.asksaveasfile(mode="w",
@@ -284,8 +296,8 @@ class Root:
                     filetypes=[("Text file","*.txt")],
                     title="Save output:")
             if f is not None:
-                save_to_file(a,f.name)
-        plt.semilogy(a)
+                save_to_file(spec,f.name)
+        plt.semilogy(spec)
         plt.show()
         return
 
