@@ -15,7 +15,7 @@ class Parser:
         f.write('Load source.dat;\n')
         f.write('Load detector.dat;\n')
         f.write('Load tube.dat;\n')
-        f.write('Load sample.dat;\n')
+        f.write('Load __sample__.dat;\n')
         f.write('Load quadrics.dat;\n')
         f.write('Load geometry.dat;\n')
         f.write('Load composition.dat;\n')
@@ -41,7 +41,7 @@ class Parser:
         f.write(';\nEnd\n')
         f.close()
 
-        #wrote quadrics file
+        #write quadrics file
 
         f = open(os.path.join(os.getcwd(),'quadrics.dat'), 'w+')
         __self__.temporary_files.append(os.path.join(os.getcwd(),"quadrics.dat"))
@@ -97,3 +97,53 @@ class Planes:
     def __init__(__self__):
         __self__.infinite_planes = (0,0,1,0,0,1),(0,0,-1,0,0,-1),(0,-1,0,0,-1,0),(0,1,0,0,1,0)
 
+def load_input(file_name):
+    path = os.path.dirname(file_name)
+    output_file = None
+    f = open(file_name, "r")
+    lines = f.readlines()
+    line_no = 1
+    for line in lines:
+        if line.replace("\n","") == "": continue
+        else: pass
+        if "Load" in line:
+            if line_no == 1:
+                source_file = line.replace(";","").replace("\n","").split("Load")[-1].split(".dat")[0].replace(" ","") + ".dat"
+            elif line_no == 2:
+                 screen_file = line.replace(";","").replace("\n","").split("Load")[-1].split(".dat")[0].replace(" ","") + ".dat"
+            elif line_no == 3:
+                 spectrum_file = line.replace(";","").replace("\n","").split("Load")[-1].split(".dat")[0].replace(" ","") + ".dat"
+            elif line_no == 4:
+                 sample_file = line.replace(";","").replace("\n","").split("Load")[-1].split(".dat")[0].replace(" ","") + ".dat"
+            elif line_no == 5:
+                 quadrics_file = line.replace(";","").replace("\n","").split("Load")[-1].split(".dat")[0].replace(" ","") + ".dat"
+            elif line_no == 6:
+                 geom_file = line.replace(";","").replace("\n","").split("Load")[-1].split(".dat")[0].replace(" ","") + ".dat"
+            elif line_no == 7:
+                 composition_file = line.replace(";","").replace("\n","").split("Load")[-1].split(".dat")[0].replace(" ","") + ".dat"
+            line_no += 1
+
+        elif "Save" in line:
+            output_file = line.replace(";","").replace("\n","").split("Image ")[-1].split(".dat")[0].replace(" ","") + ".dat"
+    f.close()
+    
+    continuous_spectrum_file = get_tube_dat(os.path.join(path,spectrum_file))
+    
+    files = []
+    files.append((os.path.join(path,source_file),source_file))
+    files.append((os.path.join(path,screen_file),screen_file))
+    files.append((os.path.join(path,continuous_spectrum_file),continuous_spectrum_file))
+    files.append((os.path.join(path,spectrum_file),spectrum_file))
+    files.append((os.path.join(path,sample_file),sample_file))
+    files.append((os.path.join(path,quadrics_file),quadrics_file))
+    files.append((os.path.join(path,geom_file),geom_file))
+    files.append((os.path.join(path,composition_file),composition_file))
+    return files, output_file
+
+def get_tube_dat(file_): 
+    f = open(file_, "r")
+    lines = f.readlines()
+    for line in lines:
+        if ".dat" in line:
+            return line.split(".dat")[0]+".dat"
+    return 0

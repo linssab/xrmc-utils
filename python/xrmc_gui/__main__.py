@@ -3,6 +3,7 @@ from tkinter import ttk
 from tkinter import messagebox
 from tkinter import filedialog
 import subprocess, sys, os
+import shutil
 import xrmc
 from DetectorResponse import *
 import Configure
@@ -11,6 +12,7 @@ import matplotlib.pyplot as plt
 from subprocess import Popen, PIPE
 
 global DETECTOR
+DETECTOR = rivelatore()
 
 class CustomCompound:
     def __init__(__self__, root=None):
@@ -23,6 +25,7 @@ class CustomCompound:
         __self__.frame = Frame(__self__.master, padx=3, pady=3, sticky=N+S+W+E)
         __self__.frame.grid(row=0, column=0)
         label = Label(__self__.frame, text="UNDER CONSTRUCTION").grid(row=0,column=0)
+
 
 class SDD_window:
     def __init__(__self__,parent):
@@ -60,7 +63,6 @@ class SDD_window:
     def save(__self__):
         print("saving...")
         global DETECTOR
-        DETECTOR = rivelatore()
         DETECTOR.setup(__self__)
         __self__.kill()
 
@@ -128,6 +130,10 @@ class Root:
         __self__.master.resizable(False, False)
         __self__.menu = Menu(__self__.master, tearoff=0)
         __self__.dropdown = Menu(__self__.menu, tearoff=0)
+        __self__.dropdown.add_command(label="Load input", 
+                command=__self__.load_input)
+        __self__.dropdown.add_command(label="Load DAT", 
+                command=load_dat)
         __self__.dropdown.add_command(label="Configure detector", 
                 command=__self__.configure_SDD)
         __self__.menu.add_cascade(label="Options", menu=__self__.dropdown)
@@ -138,6 +144,40 @@ class Root:
         __self__.thicknesses = []
         __self__.comboboxes = []
         __self__.build_widgets()
+
+    def load_input(__self__):
+        f = filedialog.askopenfilename(title="Open input file",
+                        filetypes=[("Input file","*.dat")])
+        if f is not "":
+            files, __self__.out = Configure.load_input(f)
+            __self__.temp = []
+            local_path = os.path.dirname(os.path.abspath(__file__))
+
+            ##################################################
+            # Copies all relevant files to working directory #
+            ##################################################
+            for fpath, fname in files:
+                destination = os.path.join(local_path,fname)
+                try: 
+                    if fname == "sample.dat":
+
+                    else:
+                        shutil.copy(fpath,destination)
+                        __self__.temp.append(destination)
+                        files_in_root = 0
+                except: 
+                    files_in_root = 1
+                    pass
+            #################################################################
+            #NOTE: If the input file selected is in the working directory,  #
+            # there it no need to create a temporary input file             #
+            #################################################################
+            if not files_in_root:
+                shutil.copy(f,os.path.join(local_path,"temp_input.dat"))
+                __self__.temp.append(os.path.join(local_path,"temp_input.dat"))
+                __self__.launch(__input__="temp_input.dat")
+            else: __self__.launch(__input__=f)
+            #################################################################
 
     def configure_SDD(__self__):
         SDD_window(__self__)        
@@ -168,7 +208,7 @@ class Root:
         __self__.erase = ttk.Checkbutton(__self__.buttons, text="Erase generated files", variable=__self__.EraseVar)
         __self__.accept = ttk.Button(__self__.buttons, text="Go!",
                 command=__self__.launch)
-        __self__.cancel = ttk.Button(__self__.buttons, text="Cancel",
+        __self__.cancel = ttk.Button(__self__.buttons, text="Exit",
                 command=__self__.master.destroy)
 
         __self__.frame.grid(row=0, column=0, padx=3, pady=3,sticky=N+S)
@@ -220,85 +260,66 @@ class Root:
                 __self__.quantity.insert(END,f"{w*100:.2f}%")
         return
 
-    def launch(__self__,e=""):
+    def launch(__self__,__input__=None):
         global DETECTOR
+        if not DETECTOR.Configured:
+            messagebox.showerror("Detector not configured!",
+                    "SDD Detector parameters are not configured!")
+            return
 
-        compounds, materials, thicknesses = [], [], []
-        skipped_materials, skipped_thick = [], []
-        for i in range(len(__self__.layers)):
-            if __self__.layers[i].get() \
-                    and __self__.layers[i].get() != "Custom"\
-                    and __self__.thicknesses[i].get() > 0.0:
-                materials.append(__self__.layers[i].get())
-                thicknesses.append(__self__.thicknesses[i].get())
-            else: 
-                skipped_materials.append(__self__.layers[i].get())
-                skipped_thick.append(i)
-        if skipped_materials != []:
-            text1 = ""
-            for mat, l in zip(skipped_materials,skipped_thick):
-                if mat == "": mat = "Empty"
-                text1 = str(mat) + f" - Layer {l}"
-            messagebox.showinfo("Invalid layers!",f"Ignoring layers: {text1}")
-        for material in materials:
-            a = Elements.compound()
-            a.set_compound(material)
-            compounds.append(a)
+        if __input__ is not None:
+            input_file, output_file = __input__,__self__.out
+            exe_str = r"xrmc {}".format(input_file)
+            print("SIMULATION START!")
+            p1 = subprocess.Popen(exe_str,  stderr=subprocess.PIPE)#, stdout=subprocess.PIPE)
+            p1.wait()
+            print("SIMULATION DONE")
+            for file_ in __self__.temp:
+                os.remove(file_)
+                print(f"Removed {file_}")
 
-        pars = Configure.Parser()
-        pars.get_planes(thicknesses)
-        input_file, output_file = pars.write_inputs(compounds)
+        else:
+            compounds, materials, thicknesses = [], [], []
+            skipped_materials, skipped_thick = [], []
+            for i in range(len(__self__.layers)):
+                if __self__.layers[i].get() \
+                        and __self__.layers[i].get() != "Custom"\
+                        and __self__.thicknesses[i].get() > 0.0:
+                    materials.append(__self__.layers[i].get())
+                    thicknesses.append(__self__.thicknesses[i].get())
+                else: 
+                    skipped_materials.append(__self__.layers[i].get())
+                    skipped_thick.append(i)
+            if skipped_materials != []:
+                text1 = ""
+                for mat, l in zip(skipped_materials,skipped_thick):
+                    if mat == "": mat = "Empty"
+                    text1 = str(mat) + f" - Layer {l}"
+                messagebox.showinfo("Invalid layers!",f"Ignoring layers: {text1}")
+            for material in materials:
+                a = Elements.compound()
+                a.set_compound(material)
+                compounds.append(a)
 
-        exe_str = r"xrmc {}".format(input_file)
-        print("SIMULATION START!")
-        p1 = subprocess.Popen(exe_str,  stderr=subprocess.PIPE)#, stdout=subprocess.PIPE)
-        #while True:
-        #    p1.stdout.flush()
-        #    output = p1.stdout.readline()
-        #    if not output: break
+            pars = Configure.Parser()
+            pars.get_planes(thicknesses)
+            input_file, output_file = pars.write_inputs(compounds)
 
-        p1.wait()
-        print("SIMULATION DONE")
-        if __self__.EraseVar.get():
-            for f in pars.temporary_files:
-                try: 
-                    os.remove(f)
-                    print(f"Got rid of {f}")
-                except:
-                    print(f"Could not remove {f}!")
+            exe_str = r"xrmc {}".format(input_file)
+            print("SIMULATION START!")
+            p1 = subprocess.Popen(exe_str,  stderr=subprocess.PIPE)#, stdout=subprocess.PIPE)
+            p1.wait()
+            print("SIMULATION DONE")
+            if __self__.EraseVar.get():
+                for f in pars.temporary_files:
+                    try: 
+                        os.remove(f)
+                        print(f"Got rid of {f}")
+                    except:
+                        print(f"Could not remove {f}!")
 
         print("Output file: ", output_file)
-        data = xrmc.Output(output_file) 
-        nchan = data[:,:,0,0].sum(0).shape[0]
-
-        DETECTOR.MCA_chns = int(nchan)
-        DETECTOR.energy_max = data.Emax
-
-        data = SDD_convolution_with_tail(
-                data,
-                nchan,
-                3,              #scatt_order
-                DETECTOR) 
-
-        data = detector_efficiency_convolution(
-                data,
-                nchan,
-                3,
-                DETECTOR)
-
-        spec = np.zeros(nchan, dtype=np.float32)
-        for k in range(3):
-            spec += data[k,:]
-        save = messagebox.askyesno("Save","Save output to txt?")
-        if save:
-            f = filedialog.asksaveasfile(mode="w",
-                    defaultextension=".txt",
-                    filetypes=[("Text file","*.txt")],
-                    title="Save output:")
-            if f is not None:
-                save_to_file(spec,f.name)
-        plt.semilogy(spec)
-        plt.show()
+        load_dat(output_file=output_file)
         return
 
 def save_to_file(data, path):
@@ -309,6 +330,52 @@ def save_to_file(data, path):
     for i in range(data.shape[0]):
         f.write(f"{data[i]}\n")
     f.close()
+
+def load_dat(output_file=None):
+    global DETECTOR
+    if not DETECTOR.Configured:
+        messagebox.showerror("Detector not configured!",
+                "SDD Detector parameters are not configured!")
+        return
+    if output_file is None:
+        f = filedialog.askopenfilename(title="Open DAT file",
+                        filetypes=[("DAT output file","*.dat")])
+        if f is not "":
+            output_file = f
+        else: return
+
+    data = xrmc.Output(output_file)
+    nchan = data[:,:,0,0].sum(0).shape[0]
+
+    DETECTOR.MCA_chns = nchan
+    DETECTOR.energy_max = data.Emax
+
+    data = SDD_convolution_with_tail(
+            data,
+            nchan,
+            3,              #scatt_order
+            DETECTOR)
+
+    data = detector_efficiency_convolution(
+            data,
+            nchan,
+            3,
+            DETECTOR)
+
+    spec = np.zeros(nchan, dtype=np.float32)
+    for k in range(3):
+        spec += data[k,:]
+    save = messagebox.askyesno("Save","Save output to txt?")
+    if save:
+        f = filedialog.asksaveasfile(mode="w",
+                defaultextension=".txt",
+                filetypes=[("Text file","*.txt")],
+                title="Save output:")
+        if f is not None:
+            save_to_file(spec,f.name)
+    plt.semilogy(spec)
+    plt.show()
+    return
 
 if __name__.endswith("__main__"):
     root = Root()

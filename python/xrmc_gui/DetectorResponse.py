@@ -23,6 +23,7 @@ class rivelatore:
         __self__.scatt_orders =  int
         __self__.tail_model = bool
         __self__.EscapePeak = bool
+        __self__.Configured = 0
 
     def setup(__self__, w):
         __self__.Detect_Z = int(w.Z.get())
@@ -37,6 +38,7 @@ class rivelatore:
         __self__.EscapePeakPercentage = float(w.escape_perc.get())
         __self__.tail_model = bool(w.tail.get())
         __self__.EscapePeak = bool(w.escape.get())
+        __self__.Configured = 1
 
 def detector_efficiency_convolution(
         data,
