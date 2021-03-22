@@ -159,12 +159,9 @@ class Root:
             for fpath, fname in files:
                 destination = os.path.join(local_path,fname)
                 try: 
-                    if fname == "sample.dat":
-
-                    else:
-                        shutil.copy(fpath,destination)
-                        __self__.temp.append(destination)
-                        files_in_root = 0
+                    shutil.copy(fpath,destination)
+                    __self__.temp.append(destination)
+                    files_in_root = 0
                 except: 
                     files_in_root = 1
                     pass
